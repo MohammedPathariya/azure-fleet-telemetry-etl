@@ -1,4 +1,9 @@
+# .gitignore
+__pycache__/
+.DS_Store
 .venv/
 local.settings.json
+
+mock_generator/local_csv_drops/
 mock_generator/local_csv_drops/*.csv
-.DS_Store
+mock_generator/fleet_state.json
