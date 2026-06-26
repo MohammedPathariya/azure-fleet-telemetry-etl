@@ -1,0 +1,4 @@
+.venv/
+local.settings.json
+mock_generator/local_csv_drops/*.csv
+.DS_Store
