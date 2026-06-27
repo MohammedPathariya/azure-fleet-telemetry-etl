@@ -3,25 +3,47 @@ import logging
 import csv
 import io
 import os
+import json
 import pymssql
+from azure.storage.blob import BlobServiceClient
 
 app = func.FunctionApp()
 
-@app.blob_trigger(
-    arg_name="myblob",
-    path="telemetry-data/{name}",
-    connection="AzureWebJobsStorage",
-    source="EventGrid"
-)
-def telemetry_blob_trigger(myblob: func.InputStream):
-    logging.info(f"Processing new telemetry file: {myblob.name}")
+@app.event_grid_trigger(arg_name="event")
+def telemetry_blob_trigger(event: func.EventGridEvent):
+    logging.info(f"Event Grid trigger fired: {event.event_type}")
 
     try:
-        # 1. Read and parse CSV
-        csv_text = myblob.read().decode('utf-8')
+        # 1. Extract blob URL from the Event Grid event
+        event_data = event.get_json()
+        blob_url = event_data.get("url", "")
+        logging.info(f"Blob URL: {blob_url}")
+
+        if not blob_url.endswith(".csv"):
+            logging.info(f"Skipping non-CSV file: {blob_url}")
+            return
+
+        # 2. Fetch the blob content using the connection string
+        connect_str = os.environ["AzureWebJobsStorage"]
+        blob_service = BlobServiceClient.from_connection_string(connect_str)
+
+        # Parse container and blob name from URL
+        # URL format: https://<account>.blob.core.windows.net/<container>/<blobname>
+        url_parts = blob_url.replace("https://", "").split("/")
+        container_name = url_parts[1]
+        blob_name = "/".join(url_parts[2:])
+
+        logging.info(f"Fetching blob: container={container_name}, blob={blob_name}")
+        blob_client = blob_service.get_blob_client(
+            container=container_name,
+            blob=blob_name
+        )
+        csv_text = blob_client.download_blob().readall().decode("utf-8")
+
+        # 3. Parse CSV
         csv_reader = csv.DictReader(io.StringIO(csv_text))
 
-        # 2. SQL connection using pymssql (no OS driver needed)
+        # 4. Connect to SQL
         conn = pymssql.connect(
             server=os.environ["SQL_SERVER"],
             user=os.environ["SQL_USER"],
@@ -67,8 +89,8 @@ def telemetry_blob_trigger(myblob: func.InputStream):
 
         conn.commit()
         conn.close()
-        logging.info(f"SUCCESS: Ingested {row_count} rows from {myblob.name}")
+        logging.info(f"SUCCESS: Ingested {row_count} rows from {blob_name}")
 
     except Exception as e:
-        logging.error(f"FATAL ERROR in {myblob.name}: {type(e).__name__}: {e}", exc_info=True)
+        logging.error(f"FATAL ERROR: {type(e).__name__}: {e}", exc_info=True)
         raise
