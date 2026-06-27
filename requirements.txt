@@ -1,3 +1,4 @@
 azure-functions
 azure-storage-blob
 pymssql
+pandas>=2.0.0
