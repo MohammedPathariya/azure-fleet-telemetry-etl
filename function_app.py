@@ -211,8 +211,7 @@ def generate_truck_data(vehicle_id, target_date, state, error_rate_multiplier=1.
 # ============================================================
 @app.timer_trigger(
     arg_name="mytimer",
-    schedule="0 */15 * * * *",
-    run_on_startup=True
+    schedule="0 */15 * * * *"
 )
 def telemetry_generator(mytimer: func.TimerRequest):
     logging.info("Timer fired: starting telemetry generation")
