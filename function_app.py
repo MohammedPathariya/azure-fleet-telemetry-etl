@@ -3,7 +3,6 @@ import logging
 import csv
 import io
 import os
-import json
 import pymssql
 from azure.storage.blob import BlobServiceClient
 
@@ -23,12 +22,10 @@ def telemetry_blob_trigger(event: func.EventGridEvent):
             logging.info(f"Skipping non-CSV file: {blob_url}")
             return
 
-        # 2. Fetch the blob content using the connection string
+        # 2. Fetch the blob content
         connect_str = os.environ["AzureWebJobsStorage"]
         blob_service = BlobServiceClient.from_connection_string(connect_str)
 
-        # Parse container and blob name from URL
-        # URL format: https://<account>.blob.core.windows.net/<container>/<blobname>
         url_parts = blob_url.replace("https://", "").split("/")
         container_name = url_parts[1]
         blob_name = "/".join(url_parts[2:])
@@ -56,35 +53,34 @@ def telemetry_blob_trigger(event: func.EventGridEvent):
 
         row_count = 0
         for row in csv_reader:
-            vehicle_id  = row['VehicleID']
-            recorded_at = row['RecordedAt']
-            lat         = float(row['Latitude'])
-            lon         = float(row['Longitude'])
-            speed       = int(row['SpeedKmph'])
-            temp        = float(row['EngineTempCelsius'])
-            fuel        = float(row['FuelLevelPercentage'])
+            vehicle_id   = row['VehicleID']
+            timestamp    = row['Timestamp']
+            engine_rpm   = int(row['EngineRPM'])
+            speed_mph    = float(row['SpeedMPH'])
+            fuel_pct     = float(row['FuelLevelPct'])
+            coolant_temp = float(row['CoolantTempC'])
+            odometer     = float(row['OdometerMiles'])
+            lat          = float(row['Latitude'])
+            lon          = float(row['Longitude'])
+            fault_code   = row['FaultCode']  # string, e.g. "0" or "ERR_ENGINE_OVERHEAT_P0217"
 
+            # Trust the generator's fault logic directly
             is_anomaly   = 0
             anomaly_type = None
 
-            if temp > 110.0:
+            if fault_code != "0":
                 is_anomaly   = 1
-                anomaly_type = "Engine Overheating"
-            elif speed > 120:
-                is_anomaly   = 1
-                anomaly_type = "Speed Limit Violation"
-            elif fuel < 10.0:
-                is_anomaly   = 1
-                anomaly_type = "Critical Low Fuel"
+                anomaly_type = fault_code
 
             cursor.execute("""
                 INSERT INTO VehicleTelemetry
-                    (VehicleID, RecordedAt, Latitude, Longitude,
-                     SpeedKmph, EngineTempCelsius, FuelLevelPercentage,
-                     IsAnomaly, AnomalyType)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (vehicle_id, recorded_at, lat, lon,
-                  speed, temp, fuel, is_anomaly, anomaly_type))
+                    (VehicleID, Timestamp, EngineRPM, SpeedMPH, FuelLevelPct,
+                     CoolantTempC, OdometerMiles, Latitude, Longitude,
+                     FaultCode, IsAnomaly, AnomalyType)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (vehicle_id, timestamp, engine_rpm, speed_mph, fuel_pct,
+                  coolant_temp, odometer, lat, lon,
+                  fault_code, is_anomaly, anomaly_type))
             row_count += 1
 
         conn.commit()
