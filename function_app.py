@@ -211,7 +211,7 @@ def generate_truck_data(vehicle_id, target_date, state, error_rate_multiplier=1.
 # ============================================================
 @app.timer_trigger(
     arg_name="mytimer",
-    schedule="0 */15 * * * *"
+    schedule="0 0 31 2 *" #For now, never trigger, as the triger mechanism is working as intended, and I now need to make the data more realistic before starting the pipeline again
 )
 def telemetry_generator(mytimer: func.TimerRequest):
     logging.info("Timer fired: starting telemetry generation")
