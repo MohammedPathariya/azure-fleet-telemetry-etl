@@ -384,16 +384,14 @@ def generate_truck_data(vehicle_id, target_date, state, error_rate_multiplier=1.
 
 
 # ============================================================
-# FUNCTION 3 — Timer trigger (every 3 mins during backfill)
-# Stopgap: stops when caught up to today
-# After backfill: change schedule to "0 0 0 * * *" (nightly)
+# FUNCTION 3 — Timer trigger (once every day)
 # ============================================================
 BASE_LAT = 32.8140
 BASE_LON = -96.9488
 
 @app.timer_trigger(
     arg_name="mytimer",
-    schedule="0 */3 * * * *"
+    schedule="0 0 0 * * *"
 )
 def telemetry_generator(mytimer: func.TimerRequest):
     logging.info("Timer fired: starting telemetry generation")
